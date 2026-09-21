@@ -1,82 +1,90 @@
 # Reinforcement Learning Algorithms
-## Overview
 
-This repository provides implementations and explanations of key reinforcement learning algorithms: Value Iteration, SARSA (State-Action-Reward-State-Action), and Q-learning. Each algorithm is discussed in terms of its objectives, key components, and how it compares to others.
-## Value Iteration
-Objective
+> Value Iteration, SARSA, and Q-learning implemented on FrozenLake — three ways to solve the same problem, and what separates them.
 
-Value iteration is used to find the optimal value function and policy for a Markov Decision Process.
-Algorithm
+All three are implemented with NumPy against OpenAI Gym's `FrozenLake-v1`: a
+grid world where the agent crosses a frozen lake to reach a goal, and falling in
+a hole ends the episode.
 
-The algorithm iteratively updates the value function until it converges to the optimal values.
-Update Rule
+## Run it
 
-The value iteration update rule is given by:
-V(s)←max⁡a(R(s,a)+γ∑s′P(s′∣s,a)⋅V(s′))V(s)←maxa​(R(s,a)+γ∑s′​P(s′∣s,a)⋅V(s′))
-where:
+```bash
+pip install gym numpy
+```
 
-    V(s)V(s) is the value of state ss.
-    R(s,a)R(s,a) is the immediate reward of taking action aa in state ss.
-    P(s′∣s,a)P(s′∣s,a) is the transition probability from state ss to state s′s′ given action aa.
-    γγ is the discount factor.
+Open [`Reinforcement_Learning.ipynb`](Reinforcement_Learning.ipynb) and run top
+to bottom.
 
-Policy Extraction
+## The three algorithms
 
-Once the value function converges, an optimal policy can be derived by selecting actions that maximize the expected cumulative reward.
-Comparison with SARSA and Q-learning
-Model
+| | Value Iteration | SARSA | Q-learning |
+|---|---|---|---|
+| **Needs a model?** | Yes — transitions and rewards | No | No |
+| **Policy** | Off-policy (planning) | **On-policy** | **Off-policy** |
+| **Explores?** | No | Yes (ε-greedy) | Yes (ε-greedy) |
+| **Learns** | `V(s)`, then extracts π | `Q(s,a)` | `Q(s,a)` |
+| **Temperament** | Exact | Conservative | Aggressive |
 
-Value iteration is a model-based approach, meaning it requires knowledge of the transition probabilities and rewards.
-Policy
+### Value Iteration
 
-It directly computes the optimal policy during the process.
-Exploration
+A planning method: it assumes you already know the transition probabilities and
+rewards, and computes the optimal value function directly.
 
-Unlike SARSA and Q-learning, value iteration does not involve exploration since it relies on knowledge of the complete model.
-## SARSA (State-Action-Reward-State-Action)
-Policy used for updates
+```
+V(s) ← max_a [ R(s,a) + γ · Σ_s' P(s'|s,a) · V(s') ]
+```
 
-SARSA is an on-policy algorithm. This means that it updates its Q-values based on the current policy that is being followed. In other words, it considers the action taken in the current state and the next state according to the current policy.
-Update Rule
+Iterate until `V` converges, then extract the policy by picking the action that
+maximises expected return in each state. There's no exploration because there's
+nothing to discover — the model is given.
 
-The SARSA update rule is given by:
-Q(s,a)←Q(s,a)+α[R+γQ(s′,a′)−Q(s,a)]Q(s,a)←Q(s,a)+α[R+γQ(s′,a′)−Q(s,a)]
-Where:
+That assumption is also its limitation. You rarely know `P(s'|s,a)` for a real
+problem, which is what the other two methods are for.
 
-    Q(s,a)Q(s,a) is the Q-value for the current state-action pair.
-    αα is the learning rate.
-    RR is the immediate reward.
-    γγ is the discount factor.
-    Q(s′,a′)Q(s′,a′) is the Q-value for the next state-action pair.
+### SARSA — on-policy
 
-## Q-learning
-Policy used for updates
+```
+Q(s,a) ← Q(s,a) + α [ R + γ · Q(s',a') − Q(s,a) ]
+```
 
-Q-learning is an off-policy algorithm. This means that it updates its Q-values based on the optimal policy, not necessarily the one it is currently following. It considers the best action for the next state, regardless of the action taken in the current state.
-Update Rule
+`a'` is the action the policy **actually takes** in `s'`, chosen by the same
+ε-greedy rule used to act. So SARSA evaluates the policy it's following,
+exploration included.
 
-The Q-learning update rule is given by:
-Q(s,a)←Q(s,a)+α[R+γmax⁡aQ(s′,a)−Q(s,a)]Q(s,a)←Q(s,a)+α[R+γmaxa​Q(s′,a)−Q(s,a)]
-Where:
+The consequence: SARSA accounts for the cost of its own exploration. Near a
+cliff edge, it learns that "walk along the edge" is risky *because* ε-greedy will
+occasionally step off. It ends up with a safer, more conservative route.
 
-    Q(s,a)Q(s,a) is the Q-value for the current state-action pair.
-    αα is the learning rate.
-    RR is the immediate reward.
-    γγ is the discount factor.
-    max⁡aQ(s′,a)maxa​Q(s′,a) is the maximum Q-value for the next state across all possible actions.
+### Q-learning — off-policy
 
-Key Differences
-Policy Updates
+```
+Q(s,a) ← Q(s,a) + α [ R + γ · max_a Q(s',a) − Q(s,a) ]
+```
 
-    SARSA updates based on the current policy (on-policy).
-    Q-learning updates based on the optimal policy (off-policy).
+The only change is `max_a Q(s',a)` in place of `Q(s',a')` — Q-learning updates
+toward the **best** next action regardless of what it actually did. It learns
+the optimal policy while following an exploratory one, which is what "off-policy"
+means.
 
-Action Selection
+The consequence is the mirror image of SARSA: Q-learning converges to the
+optimal path even if that path is dangerous under exploration, because it never
+prices in the ε-greedy mistakes it will make along the way.
 
-    In SARSA, the next action is selected based on the current policy.
-    In Q-learning, the next action is selected based on the action with the maximum Q-value.
+### Symbols
 
-Convergence
+`α` learning rate · `γ` discount factor · `R` immediate reward ·
+`s, a` current state and action · `s', a'` next state and action
 
-    SARSA tends to be more conservative as it considers the current policy.
-    Q-learning can be more aggressive in finding the optimal policy.
+## ε-greedy exploration
+
+Both TD methods use the same `epsilon_greedy` helper: with probability ε take a
+random action, otherwise take `argmax_a Q(s,a)`. This is the exploration/
+exploitation trade-off in its simplest form — without exploration the agent
+never discovers better routes; without exploitation it never uses what it
+learned.
+
+## The takeaway
+
+SARSA and Q-learning differ by exactly one term in the update rule, and that one
+term changes what they converge to. Value Iteration is the baseline that shows
+what both are approximating when the model is unknown.
